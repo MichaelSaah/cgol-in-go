@@ -7,6 +7,7 @@ import (
     "log"
     "strconv"
     "time"
+    "sync"
 )
 
 type coord struct {
@@ -69,33 +70,44 @@ func add_coords(a coord, b coord) coord {
 
 func update(grid [][]uint8) [][]uint8 {
     n := len(grid)
-
     next_grid := make([][]uint8, n)
     for i:= range grid {
         next_grid[i] = make([]uint8, n)
     }
 
+    var wg sync.WaitGroup
 
-    for i, row := range grid {
-        for j, _ := range row {
-            alive := grid[i][j]
-            num_neighbors := get_num_neighbors(grid, coord{i, j})
-            if alive == 1 {
-                switch {
-                case num_neighbors < 2:
-                    next_grid[i][j] = 0
-                case num_neighbors == 2 || num_neighbors == 3:
-                    next_grid[i][j] = 1
-                case num_neighbors > 3:
-                    next_grid[i][j] = 0
-                }
-            } else if alive == 0 && num_neighbors == 3 {
+    for i, _ := range grid {
+        wg.Add(1)
+        go _update_row(grid, next_grid, i, &wg)
+    }
+
+    wg.Wait()
+    return next_grid
+}
+
+func _update_row(grid [][]uint8, next_grid [][]uint8, i int, wg *sync.WaitGroup) {
+    row := grid[i]
+
+    for j,_ := range row {
+        num_neighbors := get_num_neighbors(grid, coord{i, j})
+        switch grid[i][j] {
+        case 1:
+            switch {
+            case num_neighbors < 2:
+                next_grid[i][j] = 0
+            case num_neighbors == 2 || num_neighbors == 3:
+                next_grid[i][j] = 1
+            case num_neighbors > 3:
+                next_grid[i][j] = 0
+            }
+        case 0:
+            if num_neighbors == 3 {
                 next_grid[i][j] = 1
             }
         }
     }
-
-    return next_grid
+    defer wg.Done()
 }
 
 func main() {
@@ -103,7 +115,6 @@ func main() {
     const n int = 10
 
     grid := make([][]uint8, n)
-
     for i:= range grid {
         grid[i] = make([]uint8, n)
     }
@@ -127,10 +138,11 @@ func main() {
     }
     file.Close()
 
-    for true{
-        print_grid(grid)
+    start := time.Now()
+    for i:=0;i<1000;i++{
         grid = update(grid)
-        time.Sleep(100 * time.Millisecond)
     }
+    elapsed := time.Since(start)
+    fmt.Printf("%d \n", elapsed/1000)
 
 }
