@@ -30,8 +30,6 @@ func print_grid(grid [][]uint8) {
 func get_num_neighbors(grid [][]uint8, p coord) int {
     n := len(grid)
     num_neighbors := 0
-
-    //abs_neighbor_positions := make([]coord, 8)
     rel_neighbor_positions := []coord{
         coord{-1, -1},
         coord{ 0, -1},
@@ -46,7 +44,6 @@ func get_num_neighbors(grid [][]uint8, p coord) int {
         anp := add_coords(rnp, p)
         anp.x = _mod(anp.x, n)
         anp.y = _mod(anp.y, n)
-        //fmt.Printf("%d, %d\n", anp.x, anp.y)
         if grid[anp.x][anp.y] == 1 {
             num_neighbors++
         }
@@ -72,10 +69,7 @@ func add_coords(a coord, b coord) coord {
 
 func update(grid [][]uint8) [][]uint8 {
     n := len(grid)
-    next_grid := make([][]uint8, n)
-    for i:= range grid {
-        next_grid[i] = make([]uint8, n)
-    }
+    next_grid := make_grid(n)
 
     var wg sync.WaitGroup
 
@@ -90,8 +84,7 @@ func update(grid [][]uint8) [][]uint8 {
 
 func _update_row(grid [][]uint8, next_grid [][]uint8, i int, wg *sync.WaitGroup) {
     row := grid[i]
-
-    for j,_ := range row {
+    for j, _ := range row {
         num_neighbors := get_num_neighbors(grid, coord{i, j})
         switch grid[i][j] {
         case 1:
@@ -112,47 +105,51 @@ func _update_row(grid [][]uint8, next_grid [][]uint8, i int, wg *sync.WaitGroup)
     defer wg.Done()
 }
 
-func main() {
-    runtime.GOMAXPROCS(1)
-    const n int = 50
-
-    benchmark := flag.Bool("bench", false, "benchmark the program")
-
-    flag.Parse()
-
+func make_grid(n int) [][]uint8 {
     grid := make([][]uint8, n)
-    for i:= range grid {
+    for i := range grid {
         grid[i] = make([]uint8, n)
     }
+    return grid
+}
+
+func main() {
+    benchmark := flag.Bool("bench", false, "benchmark the program")
+    procs := flag.Int("procs", 0, "the number of processor core to run on")
+    var n int
+    flag.IntVar(&n, "size", 20, "the size of the world on which to play")
+    flag.Parse()
+
+    grid := make_grid(n)
 
     file, err := os.Open("glider")
     if err != nil {
         log.Fatal(err)
     }
-
-    p := coord{0,0}
-
     scanner := bufio.NewScanner(file)
-
     j := 0
+    p := coord{0, 0}
     for scanner.Scan() {
         for i, c := range scanner.Text() {
-            x, _ := strconv.Atoi(string(c))
-            grid[p.x+i][p.y+j] = uint8(x)
+            x, err := strconv.Atoi(string(c))
+            if err != nil {
+                log.Fatal(err)
+            }
+            grid[p.x + i][p.y + j] = uint8(x)
         }
         j++
     }
     file.Close()
 
-
+    runtime.GOMAXPROCS(*procs)
     if *benchmark {
         trials := 100
         start := time.Now()
-        for i:=0;i<trials;i++{
+        for i := 0; i < trials; i++ {
             grid = update(grid)
         }
         elapsed := time.Since(start)
-        fmt.Printf("%d \n", int(elapsed)/trials)
+        fmt.Printf("%d on %d procs \n", int(elapsed)/trials, runtime.GOMAXPROCS(0))
     } else {
         for true {
             print_grid(grid)
