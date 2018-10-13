@@ -8,6 +8,8 @@ import (
     "strconv"
     "time"
     "sync"
+    "runtime"
+    "flag"
 )
 
 type coord struct {
@@ -111,8 +113,12 @@ func _update_row(grid [][]uint8, next_grid [][]uint8, i int, wg *sync.WaitGroup)
 }
 
 func main() {
+    runtime.GOMAXPROCS(1)
+    const n int = 50
 
-    const n int = 10
+    benchmark := flag.Bool("bench", false, "benchmark the program")
+
+    flag.Parse()
 
     grid := make([][]uint8, n)
     for i:= range grid {
@@ -138,11 +144,20 @@ func main() {
     }
     file.Close()
 
-    start := time.Now()
-    for i:=0;i<1000;i++{
-        grid = update(grid)
-    }
-    elapsed := time.Since(start)
-    fmt.Printf("%d \n", elapsed/1000)
 
+    if *benchmark {
+        trials := 100
+        start := time.Now()
+        for i:=0;i<trials;i++{
+            grid = update(grid)
+        }
+        elapsed := time.Since(start)
+        fmt.Printf("%d \n", int(elapsed)/trials)
+    } else {
+        for true {
+            print_grid(grid)
+            grid = update(grid)
+            time.Sleep(100 * time.Millisecond)
+        }
+    }
 }
